@@ -1,0 +1,7 @@
+greenrun:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('GREENRUN_DB', 'data/greenrun.duckdb') }}"
+      threads: 4

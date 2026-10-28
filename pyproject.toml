@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "greenrun"
+version = "0.0.0"
+description = "When to run an appliance, from day-ahead prices, renewable share and weather."
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=1.1",
+    "dbt-duckdb>=1.9",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
