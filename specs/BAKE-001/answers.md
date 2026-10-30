@@ -1,6 +1,6 @@
 # BAKE-001 answers
 
-1. TODO
+1. Product owner (2026-10-30): load the hours that came back, then exit 1 with a message naming the missing hours.
 
 2. Default: delete only the hours present in the response, for zone DE-LU, then insert them, in one transaction.
 
