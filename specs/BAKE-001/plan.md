@@ -36,9 +36,9 @@ Constants in `weather.py`: `SOURCE = "Open-Meteo"`, `URL`, `ZONE = "DE-LU"`, `LA
 ### Seams (replaced by tests)
 
 ```python
-def http_get(url: str, timeout: float) -> bytes: ...   # urllib; raises on non-2xx (HTTPError), network error, timeout
-def utc_now() -> datetime: ...                          # naive datetime in UTC
-def sleep(seconds: float) -> None: ...                  # time.sleep
+def http_get(url: str, timeout: float) -> bytes: ...  # urllib; raises on non-2xx (HTTPError), network error, timeout
+def utc_now() -> datetime: ...  # naive datetime in UTC
+def sleep(seconds: float) -> None: ...  # time.sleep
 ```
 
 Code calls them through the module (`weather.http_get(...)`) so `monkeypatch.setattr(weather, "http_get", fake)` works.
@@ -59,7 +59,7 @@ number nor null, or a time repeats. `BadResponse` counts as a failed attempt and
 ```python
 @dataclass(frozen=True)
 class WeatherRow:
-    hour_utc: datetime              # naive UTC, exactly as Open-Meteo labels it (no shift; see note below)
+    hour_utc: datetime  # naive UTC, exactly as Open-Meteo labels it (no shift; see note below)
     temperature_c: float | None
     solar_radiation_wm2: float | None
     wind_speed_100m_kmh: float | None
