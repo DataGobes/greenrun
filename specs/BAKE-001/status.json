@@ -1,0 +1,17 @@
+{
+  "id": "BAKE-001",
+  "phase": "awaiting_answers",
+  "rounds": 0,
+  "runs": [
+    {
+      "kind": "front",
+      "wave": 1,
+      "questions": {
+        "blocking": 1,
+        "other": 13
+      },
+      "tokens": 145963
+    }
+  ],
+  "tokens": 145963
+}
