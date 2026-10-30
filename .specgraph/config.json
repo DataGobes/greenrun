@@ -1,0 +1,20 @@
+{
+  "stories": "backlog/BAKE-*.md",
+  "id_pattern": "^(BAKE-\\d+)",
+  "context": ["backlog/README.md", "README.md"],
+  "specs_dir": "specs",
+  "base_branch": "main",
+  "integration_branch": "bake/graph",
+  "worktree_dir": "../greenrun-specgraph-wt",
+  "setup": ["python3 -m venv .venv", ".venv/bin/pip install -q -e '.[dev]'"],
+  "check": [".venv/bin/ruff check .", ".venv/bin/ruff format --check .", ".venv/bin/python -m pytest -q"],
+  "depends_on": {
+    "BAKE-003": ["BAKE-001", "BAKE-002"],
+    "BAKE-004": ["BAKE-003"],
+    "BAKE-005": ["BAKE-003"],
+    "BAKE-006": ["BAKE-004", "BAKE-005"],
+    "BAKE-007": ["BAKE-004", "BAKE-006"]
+  },
+  "max_parallel": 2,
+  "max_fix_rounds": 2
+}
