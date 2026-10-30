@@ -16,7 +16,11 @@ An energy analyst needs hourly weather for the DE-LU reference point in the ware
 - **AC-8** (story criterion 4): When the faked API fails on every call, the command makes 1 first attempt plus 3 retries, then exits non-zero. The message names Open-Meteo as the source. The table is unchanged from before the run.
 - **AC-9** (story criterion 4): When the faked API fails twice and then succeeds, the command exits 0 and loads the full range.
 - **AC-10** (story criterion 5): A `null` in the source for any of the three measures is stored as SQL `NULL` in that column, not as `0`. The row for that hour is still written.
-- **AC-11** (shared interface, offline tests): All tests for this story run without network access. The HTTP call and the clock can be replaced in tests.
+- **AC-11** (shared interface, offline tests): All tests for this story run without network access. The HTTP call, the clock and the wait between attempts can be replaced in tests.
+- **AC-12** (product owner answer 1): When the faked API answers but returns fewer hours than requested, the command loads the hours it got (replacing only those hours), then exits `1` with a message on stderr naming the missing hours. Earlier rows for the missing hours are kept.
+- **AC-13** (answer 13): Hours in the response that fall outside the requested range are dropped before writing. Rows already stored for those hours are unchanged.
+- **AC-14** (answers 12 and 14): A refused run (bad input, window) or a failed run (API keeps failing) does not create the DuckDB file, schema `raw` or the table. Error messages go to stderr; the success line goes to stdout.
+- **AC-15** (answers 6 and 7): Every failure is retried, including a 4xx answer such as 400. Each request uses a 30 second timeout, and the command waits about 1 second between attempts; tests replace the wait so they do not sleep.
 
 ## Interfaces
 
@@ -24,23 +28,24 @@ An energy analyst needs hourly weather for the DE-LU reference point in the ware
 
 - New command: `python -m greenrun ingest weather --start YYYY-MM-DD --end YYYY-MM-DD`.
 - `--start` and `--end` are required and inclusive.
-- Exit codes: `0` loaded; `2` bad input or range outside the allowed window; non-zero (see assumptions) when the API keeps failing.
+- Exit codes: `0` every requested hour loaded; `1` the API kept failing, or it returned fewer hours than requested (the hours it returned are still loaded); `2` bad input or range outside the allowed window.
+- Output: one success line on stdout with the number of rows loaded. Error and warning messages on stderr.
 
 **Warehouse** (DuckDB at `$GREENRUN_DB`, default `data/greenrun.duckdb`)
 
-- Schema `raw` and table `raw.weather_hourly` are created if they do not exist.
+- Schema `raw` and table `raw.weather_hourly` are created if they do not exist, only inside the write transaction of a successful fetch. Nothing is created on a refused or failed run.
 - Columns:
 
 | Column | Meaning |
 |---|---|
 | `bidding_zone` | text, `DE-LU` |
-| `hour_utc` | timestamp, UTC, start of the hour |
+| `hour_utc` | plain `TIMESTAMP`, UTC, the hour Open-Meteo labels the value with (no shift) |
 | `temperature_c` | double, Open-Meteo `temperature_2m`, nullable |
 | `solar_radiation_wm2` | double, Open-Meteo `shortwave_radiation`, nullable |
 | `wind_speed_100m_kmh` | double, Open-Meteo `wind_speed_100m`, nullable |
-| `loaded_at` | timestamp, UTC, when the run wrote the row |
+| `loaded_at` | plain `TIMESTAMP` (UTC, same type as `hour_utc`), one value per run: when the run started writing |
 
-- One row per (`bidding_zone`, `hour_utc`).
+- One row per (`bidding_zone`, `hour_utc`), declared as `PRIMARY KEY (bidding_zone, hour_utc)`.
 
 **Source**
 
@@ -65,10 +70,12 @@ An energy analyst needs hourly weather for the DE-LU reference point in the ware
 1. "Every day in the range" means UTC calendar days, so each day has exactly 24 rows. Local days in Europe/Berlin are not used here.
 2. `temperature_c` comes from Open-Meteo `temperature_2m` (as in `scripts/smoke_apis.py`). The story does not name the height.
 3. The allowed window is measured from today's date in UTC: start no earlier than today minus 92 days, end no later than today plus 7 days. Both bounds are inclusive.
-4. "Retries up to 3 times" means 4 attempts in total. A failure is a network error, a timeout, a non-2xx HTTP status, or a body that cannot be read as the expected JSON. The wait between attempts is short and not fixed by this spec.
+4. "Retries up to 3 times" means 4 attempts in total. A failure is a network error, a timeout, any non-2xx HTTP status (4xx included), or a body that cannot be read as the expected JSON. Each request has a 30 second timeout; the wait between attempts is about 1 second (answers 6 and 7).
 5. The exit code after the API keeps failing is `1`. The shared rule says `1` means "the command ran but found a problem it reports".
-6. "Newest load wins" is done by deleting the rows for the zone and the loaded hours, then inserting the new rows, in one transaction. A failed run writes nothing because all data is fetched before the transaction starts.
+6. "Newest load wins" is done by deleting the rows for zone DE-LU and only the hours present in the (range-filtered) response, then inserting the new rows, in one transaction (answer 2). A failed run writes nothing because all data is fetched before the transaction starts. Older forecast versions are not kept (answer 9).
 7. Wind speed is stored in km/h, which is the Open-Meteo default unit. No unit parameter is sent.
 8. There is no `--zone` flag. DE-LU is the only zone.
-9. If Open-Meteo returns fewer hours than requested, the command loads what it got and does not fail. The story does not say what to do here.
-10. On success the command prints a short line with the number of rows loaded. The story does not require any output.
+9. If Open-Meteo returns fewer hours than requested, the command loads what it got, then exits `1` with a message naming the missing hours (product owner, answer 1).
+10. On success the command prints a short line on stdout with the number of rows loaded. Error messages go to stderr (answer 14).
+11. Open-Meteo labels `shortwave_radiation` with the end of the hour it averages. The value is stored at the hour Open-Meteo returns, with no shift; the code notes this convention. A shift, if wanted, belongs in the BAKE-003 staging model (answer 8).
+12. Dates and the window are validated before the database is opened (answer 12). "Today" is the UTC date from a clock tests can replace (answer 4).
