@@ -1,0 +1,100 @@
+{
+  "id": "BAKE-001",
+  "phase": "passed",
+  "rounds": 0,
+  "runs": [
+    {
+      "kind": "front",
+      "wave": 1,
+      "questions": {
+        "blocking": 1,
+        "other": 13
+      },
+      "tokens": 145963
+    },
+    {
+      "kind": "back",
+      "wave": 1,
+      "merged": true,
+      "tokens": 338252
+    }
+  ],
+  "tokens": 484215,
+  "criteria": [
+    {
+      "id": "AC-1",
+      "pass": true,
+      "evidence": "tests/test_weather_ingest.py::test_loads_one_row_per_utc_hour: exit 0, 168 rows, 168 distinct hours, min 2026-10-01 00:00, max 2026-10-07 23:00, consecutive 1h steps. Ran it by hand with a faked http_get: same 168 rows, stdout 'Loaded 168 weather rows for DE-LU, 2026-10-01 to 2026-10-07.'"
+    },
+    {
+      "id": "AC-2",
+      "pass": true,
+      "evidence": "test_columns_and_values_match_source: DESCRIBE gives the 6 columns in order with the spec types (VARCHAR/TIMESTAMP/DOUBLE x3/TIMESTAMP). Values for temperature_2m->temperature_c, shortwave_radiation->solar_radiation_wm2 and wind_speed_100m->wind_speed_100m_kmh match the fake at rows 0, 13 and 167. bidding_zone is always DE-LU."
+    },
+    {
+      "id": "AC-3",
+      "pass": true,
+      "evidence": "test_request_url parses the captured URL: https://api.open-meteo.com/v1/forecast with latitude 51.17, longitude 10.45, the hourly list of 3 variables, start_date and end_date, and timezone=UTC. No real call is made."
+    },
+    {
+      "id": "AC-4",
+      "pass": true,
+      "evidence": "test_window_refused (start too early, end too late): exit 2, err names 2026-07-20 and 2026-10-27, no HTTP call, no DB file. test_window_bounds_allowed checks the inclusive bounds and test_window_uses_utc_date checks the UTC date. By hand with the real clock: exit 2, 'outside the allowed window 2026-07-30 to 2026-11-06', and no DB file was created."
+    },
+    {
+      "id": "AC-5",
+      "pass": true,
+      "evidence": "test_bad_input checks 2026-13-01, 2026/10/01, 20261001, 2026-10-32 and start>end: each exits 2 with an error on stderr, makes no HTTP call and creates no DB. By hand: '2026-1-1' gives exit 2, start>end gives exit 2, and a missing --end gives an argparse exit 2."
+    },
+    {
+      "id": "AC-6",
+      "pass": true,
+      "evidence": "test_rerun_newest_load_wins: after the second load there are 168 rows, distinct (zone,hour)=168, every loaded_at equals the second run's time, and the values carry the second run's offset. By hand, two runs in a row left 168 rows. The table has PRIMARY KEY (bidding_zone, hour_utc)."
+    },
+    {
+      "id": "AC-7",
+      "pass": true,
+      "evidence": "test_overlapping_range_replaces_only_overlap: loads 10-01..03, then 10-03..05. Result is 120 rows. Hours before 10-03 are the same as the first load (first loaded_at). Hours from 10-03 on carry the second loaded_at and the second run's values."
+    },
+    {
+      "id": "AC-8",
+      "pass": true,
+      "evidence": "test_all_attempts_fail is parametrised over HTTP 500, URLError, timeout and non-JSON. Each makes 4 calls, exits 1, writes 'Open-Meteo' on stderr and nothing on stdout, and leaves the table identical to before. By hand: 'error: Open-Meteo request failed after 4 attempts: boom', exit 1, 4 calls."
+    },
+    {
+      "id": "AC-9",
+      "pass": true,
+      "evidence": "test_two_failures_then_success: 500, then timeout, then a good body. Result: 3 calls, exit 0, 168 rows."
+    },
+    {
+      "id": "AC-10",
+      "pass": true,
+      "evidence": "test_null_stored_as_null puts a null in each measure on its own hour. Each null is stored as SQL NULL, the other columns are non-null, and all 168 rows are written. By hand: hour 2026-10-01 05:00 stored temperature_c=None. parse_response maps JSON null to None."
+    },
+    {
+      "id": "AC-11",
+      "pass": true,
+      "evidence": "The autouse offline fixture in tests/conftest.py blocks socket connect/getaddrinfo and replaces weather.http_get, weather.utc_now and weather.sleep. test_no_network_used confirms the real http_get raises NetworkBlocked. The full suite passes (64 passed)."
+    },
+    {
+      "id": "AC-12",
+      "pass": true,
+      "evidence": "test_partial_response_loads_and_exits_1: 3 hours are dropped. Result: exit 1, stdout 'Loaded 165...', stderr 'returned 165 of 168 hours' with the missing range, and the seeded rows for the missing hours are kept with their old loaded_at. test_empty_response_exits_1_writes_nothing covers the 0-hour case. By hand: 166 of 168, exit 1, missing '2026-10-07 22:00..2026-10-07 23:00 UTC'. This matches the user's decision 'Load what came, exit 1'."
+    },
+    {
+      "id": "AC-13",
+      "pass": true,
+      "evidence": "test_out_of_range_hours_dropped: extra hours 2026-09-30 23:00 and 2026-10-08 00:00 in the response are not written, and the earlier row stored for 2026-10-08 00:00 is unchanged (select_in_range)."
+    },
+    {
+      "id": "AC-14",
+      "pass": true,
+      "evidence": "test_refused_and_failed_runs_create_nothing: after bad-order, window and 4x URLError runs, neither the DB file nor its parent dir exists. warehouse.connect() is only called after a successful fetch, and CREATE SQL runs inside the write transaction. stdout/stderr split is asserted in the AC-1, 4, 5 and 8 tests. By hand: the scratch dir was still empty after the refused runs."
+    },
+    {
+      "id": "AC-15",
+      "pass": true,
+      "evidence": "test_4xx_is_retried: HTTP 400 gives 4 calls. test_timeout_and_wait: timeouts == [30]*4 and sleeps == [1.0]*3 on failure, no sleep on first-try success. In weather.py, TIMEOUT_S=30, RETRY_WAIT_S=1.0 and ATTEMPTS=4."
+    }
+  ]
+}
